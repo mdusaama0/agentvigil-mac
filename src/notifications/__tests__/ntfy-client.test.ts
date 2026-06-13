@@ -1,8 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }));
+const { fetchMock, macNotifierMocks } = vi.hoisted(() => ({
+  fetchMock: vi.fn(),
+  macNotifierMocks: {
+    notifyPermission: vi.fn(),
+    notifyTaskComplete: vi.fn(),
+    notifySessionError: vi.fn(),
+    notifyIdle: vi.fn(),
+    notifySessionEnded: vi.fn(),
+  },
+}));
 
 vi.mock('node-fetch', () => ({ default: fetchMock }));
+vi.mock('../mac-notifier.js', () => macNotifierMocks);
 
 const {
   sendPermissionNotification,
@@ -15,6 +25,10 @@ const {
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockResolvedValue({ ok: true });
+  for (const mock of Object.values(macNotifierMocks)) {
+    mock.mockReset();
+    mock.mockResolvedValue(undefined);
+  }
 });
 
 afterEach(() => {
@@ -40,6 +54,7 @@ describe('sendPermissionNotification', () => {
     expect(init.headers.Actions).toContain('APPROVE, https://ntfy.sh/agentvigil-topic/approve/sess1');
     expect(init.headers.Actions).toContain('DENY, https://ntfy.sh/agentvigil-topic/deny/sess1');
     expect(init.body).toBe('rm -rf /tmp/x');
+    expect(macNotifierMocks.notifyPermission).toHaveBeenCalledWith('my-app', 'rm -rf /tmp/x');
   });
 });
 
@@ -53,6 +68,7 @@ describe('sendTaskCompleteNotification', () => {
     expect(init.headers.Priority).toBe('default');
     expect(init.headers.Tags).toBe('white_check_mark');
     expect(init.body).toBe('Completed in 4m12s');
+    expect(macNotifierMocks.notifyTaskComplete).toHaveBeenCalledWith('my-app', '4m12s');
   });
 });
 
@@ -66,6 +82,7 @@ describe('sendErrorNotification', () => {
     expect(init.headers.Priority).toBe('high');
     expect(init.headers.Tags).toBe('x,red_circle');
     expect(init.body).toBe('Process crashed');
+    expect(macNotifierMocks.notifySessionError).toHaveBeenCalledWith('my-app', 'Process crashed');
   });
 });
 
@@ -79,6 +96,7 @@ describe('sendIdleNotification', () => {
     expect(init.headers.Priority).toBe('default');
     expect(init.headers.Tags).toBe('information_source');
     expect(init.headers.Click).toBe('agentvigil://session/sess1');
+    expect(macNotifierMocks.notifyIdle).toHaveBeenCalledWith('my-app');
   });
 });
 
@@ -92,6 +110,7 @@ describe('sendSessionEndedNotification', () => {
     expect(init.headers.Priority).toBe('low');
     expect(init.headers.Tags).toBe('white_check_mark');
     expect(init.body).toBe('Claude Code session ended');
+    expect(macNotifierMocks.notifySessionEnded).toHaveBeenCalledWith('my-app');
   });
 });
 
