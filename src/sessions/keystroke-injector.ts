@@ -209,7 +209,18 @@ end if`;
     logger.dim(out === 'not-running' ? 'Terminal.app: not running' : 'Terminal.app: no tab found for this tty');
     return false;
   } catch (err) {
-    logger.dim(`Terminal.app: osascript failed (Automation/Accessibility permission?): ${err}`);
+    // System Events `keystroke` requires Accessibility permission for the
+    // app that owns this process tree (Terminal.app when run from a Terminal
+    // window) — error -1002 specifically means that permission is missing,
+    // as opposed to other osascript failures.
+    if (String(err).includes('not allowed to send keystrokes')) {
+      logger.warn(
+        'Terminal.app: missing Accessibility permission for keystroke injection — ' +
+          'grant it in System Settings > Privacy & Security > Accessibility (enable Terminal), then restart agentvigil'
+      );
+    } else {
+      logger.dim(`Terminal.app: osascript failed (Automation/Accessibility permission?): ${err}`);
+    }
     return false;
   }
 }
