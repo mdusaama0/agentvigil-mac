@@ -26,9 +26,19 @@ const SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
 /** Marker present in every OLD-style bare command (pre-absolute-path fix). */
 const LEGACY_MARKER = 'agentvigil hook';
 
-/** Returns true when a command was registered by AgentVigil (old or new). */
+/**
+ * Matches `<node> <any-path>/agentvigil[-mac]/dist/index.js hook <type>` —
+ * i.e. ANY AgentVigil installation (global npm, local dev checkout, npx
+ * cache, etc.), not just the one currently running `setup`. Without this,
+ * running `setup` from a different install path than last time leaves the
+ * previous install's entry behind instead of replacing it, and Claude Code
+ * ends up firing every registered copy for a single event.
+ */
+const ANY_INSTALL_PATTERN = /[/\\]agentvigil(?:-mac)?[/\\]dist[/\\]index\.js hook /;
+
+/** Returns true when a command was registered by AgentVigil (old or new, any install). */
 const isOurCommand = (cmd: string): boolean =>
-  cmd.includes(entryPoint) || cmd.includes(LEGACY_MARKER);
+  cmd.includes(entryPoint) || cmd.includes(LEGACY_MARKER) || ANY_INSTALL_PATTERN.test(cmd);
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -98,11 +108,14 @@ export function mergeHooks(existing: HookConfig, ours: HookConfig): HookConfig {
         }
       }
 
-      // Remove entries that are now empty after stripping our old commands.
-      const emptyIdx = entries.findIndex(
-        (e) => e.matcher === ourEntry.matcher && e.hooks.length === 0,
-      );
-      if (emptyIdx !== -1) entries.splice(emptyIdx, 1);
+      // Remove ALL entries that are now empty after stripping our old
+      // commands — multiple AgentVigil installations can each have left
+      // their own same-matcher entry behind, not just one.
+      for (let i = entries.length - 1; i >= 0; i--) {
+        if (entries[i].matcher === ourEntry.matcher && entries[i].hooks.length === 0) {
+          entries.splice(i, 1);
+        }
+      }
 
       // Add the fresh entry (always — we removed any pre-existing one above).
       entries.push(ourEntry);

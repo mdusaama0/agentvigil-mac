@@ -114,6 +114,67 @@ describe('mergeHooks', () => {
     expect(stopCmds[0]).toContain(process.execPath);
     expect(stopCmds[0]).not.toBe('agentvigil hook stop');
   });
+
+  it('replaces hooks registered by a different AgentVigil installation instead of stacking', () => {
+    // Simulates re-running `setup` from a different install (global npm vs.
+    // a local dev checkout vs. an npx cache) — each computes its own
+    // absolute entryPoint, so a naive exact-path check would leave the old
+    // install's entries in place and Claude Code would fire every copy.
+    const existing = {
+      Notification: [
+        {
+          matcher: 'permission_prompt',
+          hooks: [{ type: 'command' as const, command: '/usr/bin/node /opt/homebrew/lib/node_modules/agentvigil/dist/index.js hook permission_prompt' }],
+        },
+        {
+          matcher: 'idle_prompt',
+          hooks: [{ type: 'command' as const, command: '/usr/bin/node /opt/homebrew/lib/node_modules/agentvigil/dist/index.js hook idle_prompt' }],
+        },
+      ],
+      Stop: [{ hooks: [{ type: 'command' as const, command: '/usr/bin/node /Users/x/.npm/_npx/abc123/node_modules/agentvigil/dist/index.js hook stop' }] }],
+    };
+    const merged = mergeHooks(existing, buildHookConfig());
+
+    for (const matcher of ['permission_prompt', 'idle_prompt']) {
+      const entries = merged.Notification!.filter((e) => e.matcher === matcher);
+      expect(entries).toHaveLength(1);
+      expect(entries[0].hooks).toHaveLength(1);
+      expect(entries[0].hooks[0].command).toContain(process.execPath);
+      expect(entries[0].hooks[0].command).not.toContain('/opt/homebrew/lib/node_modules/agentvigil');
+    }
+
+    expect(merged.Stop).toHaveLength(1);
+    expect(merged.Stop![0].hooks).toHaveLength(1);
+    expect(merged.Stop![0].hooks[0].command).not.toContain('_npx');
+  });
+
+  it('collapses many duplicate same-matcher entries (one per install) down to one', () => {
+    // Reproduces the real-world settings.json after repeated `setup` runs
+    // from 5 different AgentVigil installs — each run added its own
+    // permission_prompt/idle_prompt entry without removing the others'.
+    const installPaths = [
+      '/Users/x/agentvigil-mac/dist/index.js',
+      '/Users/x/node_modules/agentvigil/dist/index.js',
+      '/Users/x/.npm/_npx/aaa/node_modules/agentvigil/dist/index.js',
+      '/Users/x/.npm/_npx/bbb/node_modules/agentvigil/dist/index.js',
+      '/opt/homebrew/lib/node_modules/agentvigil/dist/index.js',
+    ];
+    const existing = {
+      Notification: installPaths.flatMap((p) => [
+        { matcher: 'permission_prompt', hooks: [{ type: 'command' as const, command: `/usr/bin/node ${p} hook permission_prompt` }] },
+        { matcher: 'idle_prompt', hooks: [{ type: 'command' as const, command: `/usr/bin/node ${p} hook idle_prompt` }] },
+      ]),
+      Stop: installPaths.map((p) => ({ hooks: [{ type: 'command' as const, command: `/usr/bin/node ${p} hook stop` }] })),
+      SubagentStop: installPaths.map((p) => ({ hooks: [{ type: 'command' as const, command: `/usr/bin/node ${p} hook subagent_stop` }] })),
+    };
+
+    const merged = mergeHooks(existing, buildHookConfig());
+
+    expect(merged.Notification!.filter((e) => e.matcher === 'permission_prompt')).toHaveLength(1);
+    expect(merged.Notification!.filter((e) => e.matcher === 'idle_prompt')).toHaveLength(1);
+    expect(merged.Stop).toHaveLength(1);
+    expect(merged.SubagentStop).toHaveLength(1);
+  });
 });
 
 // ── registerHooks ─────────────────────────────────────────────────────────
