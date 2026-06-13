@@ -1,6 +1,6 @@
 {
   "name": "agentvigil",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Fleet watchdog for AI coding agent sessions — monitor Claude Code, Codex and Amp from your phone",
   "type": "module",
   "main": "dist/index.js",
