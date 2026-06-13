@@ -35,12 +35,18 @@ async function getMessagingApp(): Promise<import('firebase-admin/app').App | und
  * same way regardless of transport. High-priority data messages are delivered
  * by FCM even when the app has been force-stopped (killed).
  *
- * Returns true if the message was handed to FCM, false if FCM isn't
- * configured or the send failed — the caller should fall back to ntfy.
+ * Returns `'sent'` if the message was handed to FCM, `'invalid-token'` if
+ * the token is permanently dead (the caller should stop using it until the
+ * phone re-registers one), or `'error'` for any other failure — in both
+ * non-`'sent'` cases the caller should fall back to ntfy.
  */
-export async function sendFcmEvent(fcmToken: string, event: AgentEvent, sharedSecret: string): Promise<boolean> {
+export async function sendFcmEvent(
+  fcmToken: string,
+  event: AgentEvent,
+  sharedSecret: string
+): Promise<'sent' | 'invalid-token' | 'error'> {
   const fcmApp = await getMessagingApp();
-  if (!fcmApp) return false;
+  if (!fcmApp) return 'error';
 
   try {
     const { getMessaging } = await import('firebase-admin/messaging');
@@ -56,10 +62,14 @@ export async function sendFcmEvent(fcmToken: string, event: AgentEvent, sharedSe
       },
     });
     logger.success(`FCM push sent: ${event.type} (${event.project_name})`);
-    return true;
+    return 'sent';
   } catch (err) {
+    if ((err as { code?: string }).code === 'messaging/registration-token-not-registered') {
+      logger.warn('FCM token is no longer registered — falling back to ntfy until the phone re-registers');
+      return 'invalid-token';
+    }
     logger.warn('FCM push failed — falling back to ntfy', err);
-    return false;
+    return 'error';
   }
 }
 

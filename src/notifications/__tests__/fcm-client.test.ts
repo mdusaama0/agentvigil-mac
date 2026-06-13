@@ -73,7 +73,7 @@ describe('sendFcmEvent', () => {
 
     const result = await sendFcmEvent('token123', testEvent, 'shared-secret');
 
-    expect(result).toBe(false);
+    expect(result).toBe('error');
     expect(sendMock).not.toHaveBeenCalled();
   });
 
@@ -85,7 +85,7 @@ describe('sendFcmEvent', () => {
 
     const result = await sendFcmEvent('token123', testEvent, 'shared-secret');
 
-    expect(result).toBe(true);
+    expect(result).toBe('sent');
     expect(certMock).toHaveBeenCalledWith({ project_id: 'test' });
     expect(encryptMock).toHaveBeenCalledWith(JSON.stringify(testEvent), 'shared-secret');
     expect(sendMock).toHaveBeenCalledWith({
@@ -101,7 +101,7 @@ describe('sendFcmEvent', () => {
     });
   });
 
-  it('returns false when the FCM send call throws', async () => {
+  it('returns "error" when the FCM send call throws', async () => {
     existsSyncMock.mockReturnValue(true);
     sendMock.mockRejectedValue(new Error('fcm down'));
     vi.resetModules();
@@ -109,7 +109,21 @@ describe('sendFcmEvent', () => {
 
     const result = await sendFcmEvent('token123', testEvent, 'shared-secret');
 
-    expect(result).toBe(false);
+    expect(result).toBe('error');
+  });
+
+  it('returns "invalid-token" when FCM reports the token is unregistered', async () => {
+    existsSyncMock.mockReturnValue(true);
+    const err = Object.assign(new Error('Requested entity was not found.'), {
+      code: 'messaging/registration-token-not-registered',
+    });
+    sendMock.mockRejectedValue(err);
+    vi.resetModules();
+    const { sendFcmEvent } = await import('../fcm-client.js');
+
+    const result = await sendFcmEvent('token123', testEvent, 'shared-secret');
+
+    expect(result).toBe('invalid-token');
   });
 });
 

@@ -47,13 +47,14 @@ async function injectText(sessionId: string, text: string): Promise<boolean> {
     return false;
   }
 
-  logger.info(`Injecting "${text}" into ${session.project_name} (pid ${pid})`);
+  const tty = await getTtyForPid(pid);
+  logger.info(`Injecting "${text}" into ${session.project_name} (pid ${pid}, tty ${tty ?? 'unresolved'})`);
 
   const strategies: Array<[string, () => Promise<boolean>]> = [
     ['tmux',         () => injectViaTmux(pid, session.tmux_pane_id, sessionId, text)],
-    ['iTerm2',       () => injectViaITerm2(pid, text)],
-    ['Terminal.app', () => injectViaTerminalApp(pid, text)],
-    ['tty-write',    () => injectViaTtyWrite(pid, text)],
+    ['iTerm2',       () => injectViaITerm2(tty, text)],
+    ['Terminal.app', () => injectViaTerminalApp(tty, text)],
+    ['tty-write',    () => injectViaTtyWrite(tty, text)],
   ];
 
   for (const [name, strategy] of strategies) {
@@ -63,6 +64,7 @@ async function injectText(sessionId: string, text: string): Promise<boolean> {
         logger.success(`Keystroke injected into ${session.project_name} (via ${name})`);
         return true;
       }
+      logger.dim(`${name} strategy declined`);
     } catch (err) {
       logger.dim(`${name} strategy failed: ${err}`);
     }
@@ -81,7 +83,10 @@ async function injectViaTmux(
   sessionId: string,
   text: string
 ): Promise<boolean> {
-  try { await run('which', ['tmux']); } catch { return false; }
+  try { await run('which', ['tmux']); } catch {
+    logger.dim('tmux: not installed');
+    return false;
+  }
 
   // Fast path: use cached pane ID
   if (storedPaneId) {
@@ -89,7 +94,7 @@ async function injectViaTmux(
       await run('tmux', ['send-keys', '-t', storedPaneId, text, 'Enter']);
       return true;
     } catch {
-      logger.dim(`Cached tmux pane ${storedPaneId} is stale — scanning all panes`);
+      logger.dim(`tmux: cached pane ${storedPaneId} is stale — scanning all panes`);
     }
   }
 
@@ -104,22 +109,34 @@ async function injectViaTmux(
         return true;
       }
     }
-  } catch {}
+  } catch (err) {
+    logger.dim(`tmux: list-panes failed: ${err}`);
+    return false;
+  }
 
+  logger.dim(`tmux: no pane found for pid ${pid} (not running inside tmux)`);
   return false;
 }
 
 // ── Strategy 2: iTerm2 AppleScript ───────────────────────────────────────────
 // iTerm2's `write text` injects directly into the PTY without needing focus.
 
-async function injectViaITerm2(pid: string, text: string): Promise<boolean> {
+async function injectViaITerm2(tty: string | null, text: string): Promise<boolean> {
   try {
     const out = await run('pgrep', ['-x', 'iTerm2']);
-    if (!out.trim()) return false;
-  } catch { return false; }
+    if (!out.trim()) {
+      logger.dim('iTerm2: not running');
+      return false;
+    }
+  } catch {
+    logger.dim('iTerm2: not running');
+    return false;
+  }
 
-  const tty = await getTtyForPid(pid);
-  if (!tty) return false;
+  if (!tty) {
+    logger.dim('iTerm2: could not resolve tty for pid');
+    return false;
+  }
 
   const safe = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   const script = `tell application "iTerm2"
@@ -138,7 +155,10 @@ end tell`;
   try {
     await run('osascript', ['-e', script]);
     return true;
-  } catch { return false; }
+  } catch (err) {
+    logger.dim(`iTerm2: osascript failed (Automation permission?): ${err}`);
+    return false;
+  }
 }
 
 // ── Strategy 3: Terminal.app via AppleScript + System Events ─────────────────
@@ -146,14 +166,22 @@ end tell`;
 // Brings the Terminal window to the front — the visible side-effect is
 // intentional: the user sees the injection happen.
 
-async function injectViaTerminalApp(pid: string, text: string): Promise<boolean> {
+async function injectViaTerminalApp(tty: string | null, text: string): Promise<boolean> {
   try {
     const out = await run('pgrep', ['-x', 'Terminal']);
-    if (!out.trim()) return false;
-  } catch { return false; }
+    if (!out.trim()) {
+      logger.dim('Terminal.app: not running');
+      return false;
+    }
+  } catch {
+    logger.dim('Terminal.app: not running');
+    return false;
+  }
 
-  const tty = await getTtyForPid(pid);
-  if (!tty) return false;
+  if (!tty) {
+    logger.dim('Terminal.app: could not resolve tty for pid');
+    return false;
+  }
 
   const safe = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   // key code 36 = Return in System Events
@@ -178,7 +206,10 @@ end tell`;
   try {
     await run('osascript', ['-e', script]);
     return true;
-  } catch { return false; }
+  } catch (err) {
+    logger.dim(`Terminal.app: osascript failed (Automation/Accessibility permission?): ${err}`);
+    return false;
+  }
 }
 
 // ── Strategy 4: Python TIOCSTI — write into the TTY input queue ──────────────
@@ -186,9 +217,11 @@ end tell`;
 // TIOCSTI ioctl. Works for any terminal emulator when we own the TTY (same
 // user). No window focus required.
 
-async function injectViaTtyWrite(pid: string, text: string): Promise<boolean> {
-  const tty = await getTtyForPid(pid);
-  if (!tty) return false;
+async function injectViaTtyWrite(tty: string | null, text: string): Promise<boolean> {
+  if (!tty) {
+    logger.dim('tty-write: could not resolve tty for pid');
+    return false;
+  }
 
   const safe = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   const py = [
@@ -202,7 +235,10 @@ async function injectViaTtyWrite(pid: string, text: string): Promise<boolean> {
   try {
     await run('python3', ['-c', py]);
     return true;
-  } catch { return false; }
+  } catch (err) {
+    logger.dim(`tty-write: failed (python3 missing, or TIOCSTI blocked — EPERM if not same session): ${err}`);
+    return false;
+  }
 }
 
 // ── Notification fallback ─────────────────────────────────────────────────────

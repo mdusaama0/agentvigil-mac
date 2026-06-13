@@ -406,7 +406,7 @@ describe('RelayHandler.handleAgentEvent', () => {
 describe('RelayHandler FCM push routing', () => {
   it('sends permission_prompt via FCM and skips ntfy when a token + shared secret are configured', async () => {
     getConfigMock.mockResolvedValue({ fcm_token: 'token123' });
-    sendFcmEventMock.mockResolvedValue(true);
+    sendFcmEventMock.mockResolvedValue('sent');
 
     const ws = fakeWsServer(false, 'shared-secret');
     const handler = new RelayHandler(ws, 'agentvigil-topic');
@@ -424,7 +424,7 @@ describe('RelayHandler FCM push routing', () => {
 
   it('falls back to ntfy when the FCM send fails', async () => {
     getConfigMock.mockResolvedValue({ fcm_token: 'token123' });
-    sendFcmEventMock.mockResolvedValue(false);
+    sendFcmEventMock.mockResolvedValue('error');
 
     const ws = fakeWsServer(false, 'shared-secret');
     const handler = new RelayHandler(ws, 'agentvigil-topic');
@@ -434,6 +434,22 @@ describe('RelayHandler FCM push routing', () => {
 
     expect(sendFcmEventMock).toHaveBeenCalled();
     expect(sendPermissionNotificationMock).toHaveBeenCalledWith('agentvigil-topic', 'my-app', 'rm -rf /tmp/x', 'sess1');
+    expect(saveConfigMock).not.toHaveBeenCalled();
+  });
+
+  it('clears the stored FCM token when it is permanently unregistered', async () => {
+    const config = { fcm_token: 'token123' };
+    getConfigMock.mockResolvedValue(config);
+    sendFcmEventMock.mockResolvedValue('invalid-token');
+
+    const ws = fakeWsServer(false, 'shared-secret');
+    const handler = new RelayHandler(ws, 'agentvigil-topic');
+    await handler.handleAgentEvent(
+      event({ type: 'permission_prompt', permission_command: 'rm -rf /tmp/x' })
+    );
+
+    expect(sendPermissionNotificationMock).toHaveBeenCalledWith('agentvigil-topic', 'my-app', 'rm -rf /tmp/x', 'sess1');
+    expect(saveConfigMock).toHaveBeenCalledWith(expect.objectContaining({ fcm_token: undefined }));
   });
 
   it('falls back to ntfy without attempting FCM when no token is configured', async () => {
@@ -502,7 +518,7 @@ describe('RelayHandler.handleTranscriptActivity', () => {
 
   it('sends session_updated via FCM when resolving a blocked session while the phone is disconnected', async () => {
     getConfigMock.mockResolvedValue({ fcm_token: 'token123' });
-    sendFcmEventMock.mockResolvedValue(true);
+    sendFcmEventMock.mockResolvedValue('sent');
     getSessionMock.mockReturnValue({
       session_id: 'sess1',
       cwd: '/Users/me/my-app',

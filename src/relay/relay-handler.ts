@@ -347,7 +347,12 @@ export class RelayHandler {
       return false;
     }
 
-    return sendFcmEvent(config.fcm_token, event, sharedSecret);
+    const result = await sendFcmEvent(config.fcm_token, event, sharedSecret);
+    if (result === 'invalid-token') {
+      config.fcm_token = undefined;
+      await saveConfig(config);
+    }
+    return result === 'sent';
   }
 
   /** Records a notification for `sessionId` and returns whether one was already sent within the dedup window. */
