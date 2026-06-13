@@ -1,13 +1,19 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { logger } from './utils/logger.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(path.join(__dirname, '../package.json'), 'utf-8')) as { version: string };
 
 const program = new Command();
 
 program
   .name('agentvigil')
   .description('Fleet watchdog for AI coding agent sessions')
-  .version('1.0.0');
+  .version(pkg.version);
 
 program
   .command('setup')
@@ -83,7 +89,7 @@ program
 // `setup`/`start` instead of commander's default help-and-exit-1 behavior.
 program.action(() => {
   console.log('');
-  console.log('  AgentVigil v1.0.0');
+  console.log(`  AgentVigil v${pkg.version}`);
   console.log('  Fleet watchdog for AI coding agent sessions');
   console.log('');
   console.log('  Getting started:');
