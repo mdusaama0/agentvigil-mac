@@ -33,6 +33,20 @@ npx agentvigil setup
 npx agentvigil start
 ```
 
+## Enabling Approve/Deny (macOS Accessibility permission)
+
+Tapping **Approve**/**Deny** on your phone works by typing `1`/`3` + Enter into your terminal for you. On macOS, that requires the **Accessibility** permission — without it, you'll still get the push notification, but you'll see `Terminal.app: missing Accessibility permission for keystroke injection` in the logs and a fallback Mac notification telling you to type the key yourself.
+
+To enable it:
+
+1. Open **System Settings → Privacy & Security → Accessibility**.
+2. Find **Terminal** in the list (or whichever app your terminal window belongs to — iTerm2, etc.) and toggle it **on**.
+   - If it's not in the list, click **+** and add it from `/System/Applications/Utilities/Terminal.app` (or `/Applications/iTerm.app`).
+3. Restart the AgentVigil daemon (`npx agentvigil setup` / `npx agentvigil start`).
+4. Trigger a permission prompt and try Approve/Deny from your phone again.
+
+If you toggle the switch but it still doesn't work, remove the entry (select it, click **-**) and add it again — macOS sometimes needs the permission re-granted after a new process starts using it.
+
 ## Commands
 
 | Command | Description |
