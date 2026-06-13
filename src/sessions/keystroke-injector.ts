@@ -227,7 +227,10 @@ async function injectViaTtyWrite(tty: string | null, text: string): Promise<bool
   const py = [
     'import fcntl, termios, struct',
     `chars = "${safe}\\n"`,
-    `f = open("${tty}", "r+b")`,
+    // buffering=0 — a tty isn't seekable, and the default buffered I/O
+    // (BufferedRandom) probes seekability on open() and raises
+    // io.UnsupportedOperation for non-seekable files.
+    `f = open("${tty}", "r+b", buffering=0)`,
     '[fcntl.ioctl(f, termios.TIOCSTI, struct.pack("B", c)) for c in chars.encode("utf-8")]',
     'f.close()',
   ].join('; ');
@@ -236,7 +239,10 @@ async function injectViaTtyWrite(tty: string | null, text: string): Promise<bool
     await run('python3', ['-c', py]);
     return true;
   } catch (err) {
-    logger.dim(`tty-write: failed (python3 missing, or TIOCSTI blocked — EPERM if not same session): ${err}`);
+    // EPERM here is expected and not fixable from a separate process: TIOCSTI
+    // requires the calling process to be in the same session as the target
+    // tty, which a daemon never is. python3 missing would show as ENOENT instead.
+    logger.dim(`tty-write: failed (TIOCSTI requires owning the tty's session — expected EPERM from a separate process): ${err}`);
     return false;
   }
 }
