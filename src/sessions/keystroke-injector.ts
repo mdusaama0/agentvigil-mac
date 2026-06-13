@@ -125,11 +125,11 @@ async function injectViaITerm2(tty: string | null, text: string): Promise<boolea
   try {
     const out = await run('pgrep', ['-x', 'iTerm2']);
     if (!out.trim()) {
-      logger.dim('iTerm2: not running');
+      logger.dim('iTerm2: not running (pgrep returned no match)');
       return false;
     }
-  } catch {
-    logger.dim('iTerm2: not running');
+  } catch (err) {
+    logger.dim(`iTerm2: pgrep check failed: ${err}`);
     return false;
   }
 
@@ -170,11 +170,11 @@ async function injectViaTerminalApp(tty: string | null, text: string): Promise<b
   try {
     const out = await run('pgrep', ['-x', 'Terminal']);
     if (!out.trim()) {
-      logger.dim('Terminal.app: not running');
+      logger.dim('Terminal.app: not running (pgrep returned no match)');
       return false;
     }
-  } catch {
-    logger.dim('Terminal.app: not running');
+  } catch (err) {
+    logger.dim(`Terminal.app: pgrep check failed: ${err}`);
     return false;
   }
 
