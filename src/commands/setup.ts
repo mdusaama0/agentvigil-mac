@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { WebSocket } from 'ws';
 import { logger } from '../utils/logger.js';
-import { ensureCloudflared, getConfig, saveConfig } from '../utils/config.js';
+import { isCloudflaredInstalled, getConfig, saveConfig } from '../utils/config.js';
 import type { PairedDevice } from '../utils/config.js';
 import { buildHookCommand, registerHooks } from '../hooks/hook-manager.js';
 import { deriveSharedSecret, encrypt, loadOrCreateKeyPair } from '../crypto/encryption.js';
@@ -26,6 +26,12 @@ const MIN_NODE_MAJOR_VERSION = 18;
 
 export async function runSetup(options: SetupOptions = {}): Promise<void> {
   logger.banner('AgentVigil Setup');
+  logger.info('This will:');
+  logger.info('  1. Register hooks with Claude Code and Codex');
+  logger.info('  2. Generate encryption keys');
+  logger.info('  3. Start a secure tunnel');
+  logger.info('  4. Show a QR code to pair with your phone');
+  logger.info('');
 
   if (!isNodeVersionSupported(process.version)) {
     logger.error(
@@ -34,10 +40,21 @@ export async function runSetup(options: SetupOptions = {}): Promise<void> {
     return;
   }
 
-  const hasCloudflared = await ensureCloudflared();
+  const hasCloudflared = await isCloudflaredInstalled();
+  if (!hasCloudflared) {
+    logger.error('cloudflared is required but not installed.');
+    logger.info('');
+    logger.info('Install it with:');
+    logger.info('  brew install cloudflared');
+    logger.info('');
+    logger.info('Then run setup again:');
+    logger.info('  npx agentvigil setup');
+    logger.info('');
+    process.exit(1);
+  }
 
   if (options.dryRun) {
-    printDryRunPlan(hasCloudflared);
+    printDryRunPlan();
     return;
   }
 
@@ -94,15 +111,10 @@ export async function runSetup(options: SetupOptions = {}): Promise<void> {
   const tunnelManager = new TunnelManager();
   let tunnelUrl: string | undefined;
 
-  if (hasCloudflared) {
-    try {
-      tunnelUrl = await tunnelManager.start(config.ws_port);
-    } catch (err) {
-      logger.warn('Could not start cloudflared tunnel — pairing will only work on the local network', err);
-    }
-  } else {
-    logger.warn('cloudflared is not installed — pairing requires the phone to be on the same Wi-Fi network.');
-    logger.info('Install with: brew install cloudflared');
+  try {
+    tunnelUrl = await tunnelManager.start(config.ws_port);
+  } catch (err) {
+    logger.warn('Could not start cloudflared tunnel — pairing will only work on the local network', err);
   }
 
   if (tunnelUrl) {
@@ -147,6 +159,18 @@ export async function runSetup(options: SetupOptions = {}): Promise<void> {
     printFcmSetupInstructions();
   }
 
+  logger.info('');
+  logger.success('Setup complete!');
+  logger.info('');
+  logger.info('Next steps:');
+  logger.info('  1. Scan the QR code above with AgentVigil on your phone');
+  logger.info('  2. Download AgentVigil: https://agentvigil.app');
+  logger.info('  3. Start the daemon: npx agentvigil start');
+  logger.info('');
+  logger.info('To start automatically on login:');
+  logger.info('  npx agentvigil install-autostart');
+  logger.info('');
+
   logger.info('Staying alive as daemon — watching for Claude Code sessions (Ctrl-C to quit).');
 
   // ── Activate relay and run as daemon ────────────────────────────────────
@@ -166,15 +190,11 @@ function isNodeVersionSupported(version: string): boolean {
   return Number.isFinite(major) && major >= MIN_NODE_MAJOR_VERSION;
 }
 
-function printDryRunPlan(hasCloudflared: boolean): void {
+function printDryRunPlan(): void {
   logger.info('Dry run — no changes will be made. `setup` would:');
   logger.info('  1. Register Claude Code hooks in ~/.claude/settings.json (merged, never overwritten)');
   logger.info('  2. Generate an X25519 keypair and save it to ~/.agentvigil/keys.json');
   logger.info('  3. Start a local WebSocket server and display a pairing QR code');
-  logger.info(
-    hasCloudflared
-      ? '  4. Start a cloudflared tunnel so the phone can pair from anywhere'
-      : '  4. Skip the tunnel (cloudflared not found) — pairing would be limited to the local network'
-  );
+  logger.info('  4. Start a cloudflared tunnel so the phone can pair from anywhere');
   logger.info('  5. After pairing, run as daemon (no need to run `start` separately)');
 }

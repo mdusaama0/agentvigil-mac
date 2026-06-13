@@ -1,7 +1,38 @@
-node_modules/
+# Build output
 dist/
 *.js.map
+*.d.ts
+*.d.ts.map
+
+# Dependencies
+node_modules/
+
+# Environment and secrets
 .env
 .env.*
-coverage/
+*.pem
+*.key
+*.cert
+firebase-service-account.json
+google-services.json
+
+# Runtime data (lives in ~/.agentvigil/ not in repo)
+config.json
+keys.json
 *.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# npm pack output
+*.tgz

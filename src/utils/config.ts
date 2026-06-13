@@ -72,3 +72,7 @@ export async function ensureCloudflared(): Promise<boolean> {
   logger.info('Or: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/');
   return false;
 }
+
+export function isCloudflaredInstalled(): Promise<boolean> {
+  return commandExists('cloudflared');
+}

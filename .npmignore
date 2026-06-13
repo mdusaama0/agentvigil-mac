@@ -1,0 +1,13 @@
+src/
+*.test.ts
+*.spec.ts
+vitest.config.*
+tsconfig.json
+.claude/
+.env
+.env.*
+coverage/
+*.tgz
+.github/
+.gitignore
+CONTRIBUTING.md

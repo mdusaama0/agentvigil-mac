@@ -1,11 +1,20 @@
 {
   "name": "agentvigil",
   "version": "1.0.0",
-  "description": "AgentVigil Mac companion — fleet watchdog for AI coding agent sessions",
+  "description": "Fleet watchdog for AI coding agent sessions — monitor Claude Code, Codex and Amp from your phone",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "agentvigil": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "homepage": "https://agentvigil.app",
+  "bugs": {
+    "url": "https://github.com/mdusaama0/agentvigil-mac/issues"
   },
   "scripts": {
     "build": "tsc",
