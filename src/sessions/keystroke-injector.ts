@@ -122,39 +122,40 @@ async function injectViaTmux(
 // iTerm2's `write text` injects directly into the PTY without needing focus.
 
 async function injectViaITerm2(tty: string | null, text: string): Promise<boolean> {
-  try {
-    const out = await run('pgrep', ['-x', 'iTerm2']);
-    if (!out.trim()) {
-      logger.dim('iTerm2: not running (pgrep returned no match)');
-      return false;
-    }
-  } catch (err) {
-    logger.dim(`iTerm2: pgrep check failed: ${err}`);
-    return false;
-  }
-
   if (!tty) {
     logger.dim('iTerm2: could not resolve tty for pid');
     return false;
   }
 
+  // "application ... is running" is a Launch Services check baked into the
+  // script itself — unlike a separate `pgrep` pre-check, it can't disagree
+  // with what `tell application` itself sees, and avoids the surprising
+  // failure mode where `pgrep -x iTerm2` reports no match from this process
+  // even while iTerm2 is demonstrably running.
   const safe = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  const script = `tell application "iTerm2"
-  repeat with w in windows
-    repeat with t in tabs of w
-      repeat with s in sessions of t
-        if tty of s is "${tty}" then
-          tell s to write text "${safe}"
-          return "ok"
-        end if
+  const script = `if application "iTerm2" is running then
+  tell application "iTerm2"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with s in sessions of t
+          if tty of s is "${tty}" then
+            tell s to write text "${safe}"
+            return "ok"
+          end if
+        end repeat
       end repeat
     end repeat
-  end repeat
-end tell`;
+  end tell
+  return "no-match"
+else
+  return "not-running"
+end if`;
 
   try {
-    await run('osascript', ['-e', script]);
-    return true;
+    const out = (await run('osascript', ['-e', script])).trim();
+    if (out === 'ok') return true;
+    logger.dim(out === 'not-running' ? 'iTerm2: not running' : 'iTerm2: no tab found for this tty');
+    return false;
   } catch (err) {
     logger.dim(`iTerm2: osascript failed (Automation permission?): ${err}`);
     return false;
@@ -167,45 +168,46 @@ end tell`;
 // intentional: the user sees the injection happen.
 
 async function injectViaTerminalApp(tty: string | null, text: string): Promise<boolean> {
-  try {
-    const out = await run('pgrep', ['-x', 'Terminal']);
-    if (!out.trim()) {
-      logger.dim('Terminal.app: not running (pgrep returned no match)');
-      return false;
-    }
-  } catch (err) {
-    logger.dim(`Terminal.app: pgrep check failed: ${err}`);
-    return false;
-  }
-
   if (!tty) {
     logger.dim('Terminal.app: could not resolve tty for pid');
     return false;
   }
 
+  // "application ... is running" is a Launch Services check baked into the
+  // script itself — unlike a separate `pgrep` pre-check, it can't disagree
+  // with what `tell application` itself sees, and avoids the surprising
+  // failure mode where `pgrep -x Terminal` reports no match from this
+  // process even while Terminal.app is demonstrably running.
   const safe = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   // key code 36 = Return in System Events
-  const script = `tell application "Terminal"
-  repeat with w in windows
-    repeat with t in tabs of w
-      if tty of t is "${tty}" then
-        set selected of t to true
-        set frontmost of w to true
-        tell application "System Events"
-          tell process "Terminal"
-            keystroke "${safe}"
-            key code 36
+  const script = `if application "Terminal" is running then
+  tell application "Terminal"
+    repeat with w in windows
+      repeat with t in tabs of w
+        if tty of t is "${tty}" then
+          set selected of t to true
+          set frontmost of w to true
+          tell application "System Events"
+            tell process "Terminal"
+              keystroke "${safe}"
+              key code 36
+            end tell
           end tell
-        end tell
-        return "ok"
-      end if
+          return "ok"
+        end if
+      end repeat
     end repeat
-  end repeat
-end tell`;
+  end tell
+  return "no-match"
+else
+  return "not-running"
+end if`;
 
   try {
-    await run('osascript', ['-e', script]);
-    return true;
+    const out = (await run('osascript', ['-e', script])).trim();
+    if (out === 'ok') return true;
+    logger.dim(out === 'not-running' ? 'Terminal.app: not running' : 'Terminal.app: no tab found for this tty');
+    return false;
   } catch (err) {
     logger.dim(`Terminal.app: osascript failed (Automation/Accessibility permission?): ${err}`);
     return false;
