@@ -41,6 +41,13 @@ export class AgentVigilWsServer {
   private sharedSecret: string | undefined;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
+  // The phone derives the shared secret from the QR-code public key as soon
+  // as it scans it, and may send encrypted messages (e.g. register_fcm_token)
+  // before its `pair` message has been processed here. Buffer those rather
+  // than dropping them, and replay once pairing completes.
+  private static readonly MAX_PENDING_MESSAGES = 10;
+  private pendingMessages: string[] = [];
+
   constructor(private readonly port: number = 3847, options: AgentVigilWsServerOptions = {}) {
     this.wss = new WebSocketServer({ port });
     this.getSessions = options.getSessions ?? (() => []);
@@ -94,6 +101,14 @@ export class AgentVigilWsServer {
   /** Records the shared secret derived for the currently-paired device (or clears it). */
   setSharedSecret(secret: string | undefined): void {
     this.sharedSecret = secret;
+    if (!secret || this.pendingMessages.length === 0) return;
+
+    const queued = this.pendingMessages;
+    this.pendingMessages = [];
+    for (const raw of queued) {
+      logger.dim('Replaying a message received before pairing completed');
+      this.onMessage(raw);
+    }
   }
 
   /** The NaCl shared secret for the paired phone, or undefined if not yet paired. */
@@ -140,7 +155,11 @@ export class AgentVigilWsServer {
     }
 
     if (!this.sharedSecret) {
-      logger.warn('Received a message before pairing was established — ignoring');
+      logger.dim('Received a message before pairing was established — queuing until pairing completes');
+      this.pendingMessages.push(raw);
+      if (this.pendingMessages.length > AgentVigilWsServer.MAX_PENDING_MESSAGES) {
+        this.pendingMessages.shift();
+      }
       return;
     }
 

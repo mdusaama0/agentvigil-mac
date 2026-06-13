@@ -176,6 +176,26 @@ describe('AgentVigilWsServer', () => {
     expect(onCommand).toHaveBeenCalledWith(command);
   });
 
+  it('queues an encrypted message received before pairing and replays it once paired', () => {
+    const { macSecret, phoneSecret } = pairedSecrets();
+    const onCommand = vi.fn();
+    const { server, wss } = setup({ onCommand });
+
+    const ws = new FakeWebSocket();
+    wss.emit('connection', ws);
+
+    // The phone sends register_fcm_token before the `pair` message has been
+    // processed (it derives the shared secret as soon as it scans the QR code).
+    const command = { type: 'register_fcm_token', session_id: '', token: 'fcm-token-123' };
+    ws.emit('message', JSON.stringify({ payload: encrypt(JSON.stringify(command), phoneSecret) }));
+
+    expect(onCommand).not.toHaveBeenCalled();
+
+    server.setSharedSecret(macSecret);
+
+    expect(onCommand).toHaveBeenCalledWith(command);
+  });
+
   it('handles full_sync_request by re-sending the session snapshot, not forwarding to onCommand', () => {
     const { macSecret, phoneSecret } = pairedSecrets();
     const onCommand = vi.fn();
