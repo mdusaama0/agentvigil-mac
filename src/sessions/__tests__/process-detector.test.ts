@@ -17,13 +17,6 @@ const { detectAgentProcesses, findSessionFileForCwd, isPidAlive } =
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function execYields(outputs: Record<string, string>): void {
-  execMock.mockImplementation((cmd, cb) => {
-    const key = Object.keys(outputs).find(k => cmd.includes(k));
-    cb(null, { stdout: key ? outputs[key] : '', stderr: '' });
-  });
-}
-
 function execFails(): void {
   execMock.mockImplementation((_cmd, cb) => cb(new Error('command failed')));
 }

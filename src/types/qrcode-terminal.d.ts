@@ -3,8 +3,8 @@ declare module 'qrcode-terminal' {
     small?: boolean;
   }
 
-  function generate(input: string, options?: GenerateOptions, callback?: (qrcode: string) => void): void;
-
-  const qrcodeTerminal: { generate: typeof generate };
+  const qrcodeTerminal: {
+    generate: (input: string, options?: GenerateOptions, callback?: (qrcode: string) => void) => void;
+  };
   export default qrcodeTerminal;
 }

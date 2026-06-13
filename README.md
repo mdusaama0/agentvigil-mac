@@ -11,7 +11,7 @@ AgentVigil watches your AI coding agents (Claude Code, Codex, Amp) for permissio
 ## How it works
 
 ```
-Claude Code  →  hooks  →  AgentVigil companion  →  Cloudflare Tunnel  →  AgentVigil Android app
+Claude Code  →  hooks  →  AgentVigil companion  →  Cloudflare Tunnel  →  AgentVigil app (Android / iOS)
 ```
 
 The companion runs quietly on your Mac, picks up hook events the instant they fire, encrypts them end-to-end, and relays them through a Cloudflare Tunnel to your phone. Replies (approve/deny) make the same trip in reverse.
@@ -21,7 +21,7 @@ The companion runs quietly on your Mac, picks up hook events the instant they fi
 - macOS (Apple Silicon or Intel)
 - Node.js >= 18
 - [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) (`brew install cloudflared`)
-- AgentVigil Android app <!-- Play Store link here -->
+- AgentVigil app — [Android (Google Play)](https://play.google.com/store/apps/details?id=com.stacktree.agentvigil) · iOS (coming soon)
 
 ## Quick Start
 

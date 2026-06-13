@@ -9,7 +9,6 @@
 
 import os from 'node:os';
 import { logger } from '../utils/logger.js';
-import { getConfig, saveConfig } from '../utils/config.js';
 import { RelayHandler } from '../relay/relay-handler.js';
 import {
   cleanup,

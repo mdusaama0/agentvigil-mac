@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- FakeChildProcess is used as a type below
 const { FakeChildProcess, spawnMock } = vi.hoisted(() => {
   class MiniEmitter {
     private listeners = new Map<string, Array<(...args: any[]) => void>>();

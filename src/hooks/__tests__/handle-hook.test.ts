@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentEvent } from '../../types.js';
 
-const { MiniEmitter, FakeWebSocket, wsInstances, getConfigMock, loadOrCreateKeyPairMock, handleAgentEventMock, relayCtorMock } =
+const { FakeWebSocket, wsInstances, getConfigMock, loadOrCreateKeyPairMock, handleAgentEventMock, relayCtorMock } =
   vi.hoisted(() => {
     class MiniEmitter {
       private listeners = new Map<string, Array<(...args: any[]) => void>>();
@@ -16,7 +16,6 @@ const { MiniEmitter, FakeWebSocket, wsInstances, getConfigMock, loadOrCreateKeyP
       }
     }
 
-    let nextBehavior: 'open' | 'error' = 'open';
     const wsInstances: any[] = [];
 
     class FakeWebSocket extends MiniEmitter {
@@ -51,7 +50,6 @@ const { MiniEmitter, FakeWebSocket, wsInstances, getConfigMock, loadOrCreateKeyP
     const relayCtorMock = vi.fn();
 
     return {
-      MiniEmitter,
       FakeWebSocket,
       wsInstances,
       getConfigMock,

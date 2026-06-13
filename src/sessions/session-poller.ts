@@ -33,7 +33,6 @@ export async function startSessionPolling(
   async function poll(): Promise<void> {
     try {
       const liveProcs = await detectAgentProcesses();
-      const livePidSet = new Set(liveProcs.map(p => p.pid));
 
       // ── Remove dead sessions ──────────────────────────────────────────
       for (const session of getAllSessions()) {
