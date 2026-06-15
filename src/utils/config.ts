@@ -26,6 +26,10 @@ export interface Config {
   tunnel_url?: string;
   /** Phone's FCM registration token — enables direct push when the app is killed. */
   fcm_token?: string;
+  /** Hour (0-23, local time) the daily summary notification is sent. Defaults to 21. */
+  dailySummaryHour: number;
+  /** Minute (0-59, local time) the daily summary notification is sent. Defaults to 0. */
+  dailySummaryMinute: number;
 }
 
 export function createDefaultConfig(): Config {
@@ -35,6 +39,8 @@ export function createDefaultConfig(): Config {
     ntfy_topic: `agentvigil-${randomBytes(16).toString('hex')}`,
     paired_devices: [],
     ws_port: 3847,
+    dailySummaryHour: 21,
+    dailySummaryMinute: 0,
   };
 }
 

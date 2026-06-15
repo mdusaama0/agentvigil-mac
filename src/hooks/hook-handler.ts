@@ -7,6 +7,8 @@ import { getConfig } from '../utils/config.js';
 import { loadOrCreateKeyPair } from '../crypto/encryption.js';
 import { RelayHandler } from '../relay/relay-handler.js';
 import { isBlocklisted } from '../sessions/session-watcher.js';
+import { dailyTracker } from '../stats/daily-tracker.js';
+import { calculateTokenUsage } from '../sessions/token-calculator.js';
 import type { AgentEvent, AgentEventType, HookPayload } from '../types.js';
 
 const LOG_FILE = path.join(os.homedir(), '.agentvigil', 'hooks.log');
@@ -67,6 +69,11 @@ export async function handleHook(eventType: string): Promise<void> {
         event.tool_name = details.toolName;
         event.tool_input = details.toolInput;
       }
+
+      await dailyTracker.trackPermission(payload.session_id);
+    } else if (eventType === 'stop') {
+      const usage = await calculateTokenUsage(payload.transcript_path);
+      await dailyTracker.trackSessionEnd(payload.session_id, usage);
     }
 
     logger.info(`[${event.project_name}] ${event.type}: ${event.message}`);

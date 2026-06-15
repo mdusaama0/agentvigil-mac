@@ -9,6 +9,7 @@ import {
   sendTaskCompleteNotification,
 } from '../notifications/ntfy-client.js';
 import { sendFcmEvent } from '../notifications/fcm-client.js';
+import { dailyTracker } from '../stats/daily-tracker.js';
 import type { Session, SessionState } from '../sessions/session-manager.js';
 import type { SessionUpdate } from '../sessions/session-watcher.js';
 import type { AgentEvent, AgentEventType, PhoneCommand } from '../types.js';
@@ -111,6 +112,7 @@ export class RelayHandler {
           logger.info(`[ApproveDeny] session ${command.session_id} ${getSession(command.session_id) ? 'found' : 'not found'}`);
           const approved = await approvePermission(command.session_id);
           logger.info(`[ApproveDeny] keystroke result (approve → '1'): ${approved ? 'SUCCESS' : 'FAILED'}`);
+          await dailyTracker.trackApproval(command.session_id);
           this.broadcastSessionUpdated(command.session_id);
           return;
         }
@@ -119,6 +121,7 @@ export class RelayHandler {
           logger.info(`[ApproveDeny] session ${command.session_id} ${getSession(command.session_id) ? 'found' : 'not found'}`);
           const denied = await denyPermission(command.session_id);
           logger.info(`[ApproveDeny] keystroke result (deny → '3'): ${denied ? 'SUCCESS' : 'FAILED'}`);
+          await dailyTracker.trackDenial(command.session_id);
           this.broadcastSessionUpdated(command.session_id);
           return;
         }

@@ -20,6 +20,7 @@ import {
   type SessionState,
 } from '../sessions/session-manager.js';
 import { startSessionPolling } from '../sessions/session-poller.js';
+import { dailyTracker } from '../stats/daily-tracker.js';
 import { watchSessions } from '../sessions/session-watcher.js';
 import { enumerateTmuxSessions, findTmuxPaneForSession } from '../sessions/tmux-bridge.js';
 import type { AgentVigilWsServer } from '../tunnel/websocket-server.js';
@@ -91,6 +92,9 @@ export interface DaemonOptions {
  */
 export async function runDaemon({ wsServer, tunnelManager, ntfyTopic }: DaemonOptions): Promise<void> {
   const relay = new RelayHandler(wsServer, ntfyTopic);
+
+  await dailyTracker.initialize(wsServer);
+  logger.info('Daily summary scheduler started');
 
   // ── Process-based session detection ─────────────────────────────────────
   // Polls every 10 s via pgrep + lsof.  First poll is awaited so the store

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { dailyTracker } from '../stats/daily-tracker.js';
 
 export type SessionState = 'working' | 'blocked' | 'done' | 'error' | 'idle';
 export type AgentKind = 'claude-code' | 'codex' | 'amp';
@@ -68,6 +69,10 @@ export function updateSession(sessionId: string, changes: Partial<Omit<Session, 
       ? (changes.tool_name ?? existing?.tool_name)
       : undefined,
   };
+
+  if (!existing) {
+    void dailyTracker.trackSessionStart(sessionId, session.project_name, session.agent);
+  }
 
   sessionStore.set(sessionId, session);
   return session;

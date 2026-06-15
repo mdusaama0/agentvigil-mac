@@ -41,6 +41,15 @@ program
   });
 
 program
+  .command('summary')
+  .description('Send daily summary right now (for testing)')
+  .action(async () => {
+    const { dailyTracker } = await import('./stats/daily-tracker.js');
+    await dailyTracker.sendDailySummary();
+    logger.success('Summary sent');
+  });
+
+program
   .command('status')
   .description('Show all active agent sessions')
   .action(async () => {
@@ -98,7 +107,7 @@ program.action(() => {
   console.log('');
   console.log('  Supported agents: Claude Code, Codex CLI');
   console.log('  Requires: Node.js 18+, macOS');
-  console.log('  Docs: https://agentvigil.app');
+  console.log('  Docs: https://agentvigil.stacktreelabs.com/');
   console.log('');
   program.help();
 });

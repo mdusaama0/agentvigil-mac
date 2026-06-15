@@ -1,5 +1,7 @@
 import fetch from 'node-fetch';
 import { logger } from '../utils/logger.js';
+import { formatSummaryForPhone, buildSummaryPayload } from '../stats/summary-formatter.js';
+import type { DailySummary } from '../stats/daily-tracker.js';
 
 const NTFY_BASE = 'https://ntfy.sh';
 
@@ -92,5 +94,19 @@ export async function sendSessionEndedNotification(
       'Tags': 'white_check_mark',
     },
     'Claude Code session ended'
+  );
+}
+
+export async function sendDailySummaryToPhone(topic: string, summary: DailySummary): Promise<void> {
+  const { title } = formatSummaryForPhone(summary);
+  await publish(
+    topic,
+    {
+      'Title': title,
+      'Priority': 'default',
+      'Tags': 'bar_chart',
+      'Click': 'agentvigil://stats',
+    },
+    buildSummaryPayload(summary)
   );
 }

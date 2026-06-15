@@ -1,3 +1,5 @@
+import type { DailySummaryWirePayload } from './stats/summary-formatter.js';
+
 export interface HookPayload {
   session_id: string;
   transcript_path: string;
@@ -16,7 +18,8 @@ export type AgentEventType =
   | 'session_ended'
   | 'session_updated'
   | 'heartbeat'
-  | 'full_sync';
+  | 'full_sync'
+  | 'daily_stats_update';
 
 export interface AgentEvent {
   type: AgentEventType;
@@ -30,6 +33,8 @@ export interface AgentEvent {
   tool_input?: string;
   timestamp: string;
   pid?: string;
+  /** Present only when type === 'daily_stats_update'. */
+  summary?: DailySummaryWirePayload;
 }
 
 export interface FullSyncEvent extends AgentEvent {
