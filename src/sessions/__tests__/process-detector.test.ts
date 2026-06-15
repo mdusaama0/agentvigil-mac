@@ -12,7 +12,7 @@ vi.mock('node:child_process', () => ({
   exec: (cmd: string, cb: ExecCallback) => execMock(cmd, cb),
 }));
 
-const { detectAgentProcesses, findSessionFileForCwd, isPidAlive } =
+const { detectAgentProcesses, findSessionFileForCwd, findSessionFileBySessionId, resolveProjectNameFromTranscript, isPidAlive } =
   await import('../process-detector.js');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -174,5 +174,46 @@ describe('findSessionFileForCwd', () => {
     const result = await findSessionFileForCwd('/Users/dev/empty');
     expect(result).toBeNull();
     vi.restoreAllMocks();
+  });
+});
+
+describe('findSessionFileBySessionId', () => {
+  it('finds a transcript by session id across project directories', async () => {
+    const projectsDir = path.join(tmpDir, '.claude', 'projects');
+    const projectDir = path.join(projectsDir, '-Users-Usama-MeetingJets');
+    await fs.mkdir(projectDir, { recursive: true });
+    const sessionId = 'eb369977-e06e-4cfc-86cb-c12625f2b97d';
+    await fs.writeFile(
+      path.join(projectDir, `${sessionId}.jsonl`),
+      '{"message":"hello"}\n'
+    );
+
+    vi.spyOn(os, 'homedir').mockReturnValue(tmpDir);
+    const result = await findSessionFileBySessionId(sessionId);
+
+    expect(result).not.toBeNull();
+    expect(result!.sessionId).toBe(sessionId);
+    expect(result!.lastMessage).toBe('hello');
+    vi.restoreAllMocks();
+  });
+});
+
+describe('resolveProjectNameFromTranscript', () => {
+  it('uses cwd from the transcript when present', async () => {
+    const filePath = path.join(tmpDir, 'session.jsonl');
+    await fs.writeFile(
+      filePath,
+      JSON.stringify({ cwd: '/Users/dev/MeetingJets', message: 'hi' }) + '\n'
+    );
+
+    await expect(resolveProjectNameFromTranscript(filePath)).resolves.toBe('MeetingJets');
+  });
+
+  it('falls back to the encoded project directory name', async () => {
+    const filePath = path.join(tmpDir, '-Users-Usama-MeetingJets', 'session.jsonl');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, '{"message":"hi"}\n');
+
+    await expect(resolveProjectNameFromTranscript(filePath)).resolves.toBe('MeetingJets');
   });
 });

@@ -19,6 +19,11 @@ function formatCost(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
+function toIsoString(value: Date, fallback: Date = new Date()): string {
+  const date = value instanceof Date && !Number.isNaN(value.getTime()) ? value : fallback;
+  return date.toISOString();
+}
+
 export interface PhoneSummaryText {
   title: string;
 }
@@ -29,9 +34,9 @@ export interface PhoneSummaryText {
  * Flutter app from the JSON payload (see `buildSummaryPayload`).
  */
 export function formatSummaryForPhone(summary: DailySummary): PhoneSummaryText {
-  const sessionLabel = summary.totalSessions === 1 ? 'session' : 'sessions';
+  const projectLabel = summary.totalSessions === 1 ? 'project' : 'projects';
   return {
-    title: `Daily Summary - ${summary.totalSessions} ${sessionLabel}, ${formatCost(summary.totalCostUsd)}`,
+    title: `Daily Summary - ${summary.totalSessions} ${projectLabel}, ${formatTokenCount(summary.totalTokens)} tokens, ${formatDuration(summary.totalActiveTimeMs)}`,
   };
 }
 
@@ -42,11 +47,12 @@ export interface MacSummaryText {
 }
 
 export function formatSummaryForMac(summary: DailySummary): MacSummaryText {
-  const sessionLabel = summary.totalSessions === 1 ? 'session' : 'sessions';
+  const projectLabel = summary.totalSessions === 1 ? 'project' : 'projects';
   const lines = [
-    `${summary.totalSessions} ${sessionLabel} · ${formatDuration(summary.totalActiveTimeMs)} active`,
-    `${formatTokenCount(summary.totalTokens)} tokens · ${formatCost(summary.totalCostUsd)}`,
-    `${summary.totalTasksCompleted} tasks completed · ${summary.totalFilesModified} files modified`,
+    `${summary.totalSessions} ${projectLabel} · ${formatDuration(summary.totalActiveTimeMs)} active`,
+    `${formatTokenCount(summary.totalTokens)} tokens (${formatTokenCount(summary.totalOutputTokens)} output)`,
+    `${summary.totalTasksCompleted} tasks · ${summary.totalFilesModified} files modified`,
+    `Est. API equivalent: ${formatCost(summary.totalCostUsd)} (not your subscription bill)`,
   ];
 
   if (summary.totalPermissionPrompts > 0) {
@@ -56,7 +62,7 @@ export function formatSummaryForMac(summary: DailySummary): MacSummaryText {
   }
 
   if (summary.topProject !== 'none') {
-    lines.push(`Top project: ${summary.topProject} (${formatCost(summary.topProjectCost)})`);
+    lines.push(`Top project: ${summary.topProject} (${formatCost(summary.topProjectCost)} est.)`);
   }
 
   return {
@@ -92,6 +98,11 @@ export interface DailySummaryWirePayload {
   total_cache_read_tokens: number;
   total_tokens: number;
   total_cost_usd: number;
+  /** Human-readable usage line for subscription users — not a dollar bill. */
+  usage_summary: string;
+  cost_label: string;
+  cost_note: string;
+  cost_is_api_estimate: boolean;
   total_tasks_completed: number;
   total_files_modified: number;
   total_permission_prompts: number;
@@ -109,6 +120,8 @@ export interface DailySummaryWirePayload {
 /** Builds the wire shape shared by the once-daily ntfy payload and the live WS broadcast. */
 export function buildSummaryObject(summary: DailySummary): DailySummaryWirePayload {
   const n = summary.totalSessions;
+  const usageSummary = `${formatTokenCount(summary.totalTokens)} tokens · ${formatDuration(summary.totalActiveTimeMs)} · ${summary.totalTasksCompleted} tasks`;
+
   return {
     type: 'daily_summary',
     date: summary.date,
@@ -119,6 +132,10 @@ export function buildSummaryObject(summary: DailySummary): DailySummaryWirePaylo
     total_cache_read_tokens: summary.totalCacheReadTokens,
     total_tokens: summary.totalTokens,
     total_cost_usd: summary.totalCostUsd,
+    usage_summary: usageSummary,
+    cost_label: 'Est. API equivalent',
+    cost_note: 'Compares usage to pay-as-you-go API rates — not your Claude subscription bill.',
+    cost_is_api_estimate: true,
     total_tasks_completed: summary.totalTasksCompleted,
     total_files_modified: summary.totalFilesModified,
     total_permission_prompts: summary.totalPermissionPrompts,
@@ -133,9 +150,9 @@ export function buildSummaryObject(summary: DailySummary): DailySummaryWirePaylo
       session_id: s.sessionId,
       project: s.projectName,
       agent: s.agentType,
-      start_time: s.startTime.toISOString(),
-      end_time: s.endTime ? s.endTime.toISOString() : null,
-      last_activity: s.lastActivityAt.toISOString(),
+      start_time: toIsoString(s.startTime),
+      end_time: s.endTime ? toIsoString(s.endTime, s.startTime) : null,
+      last_activity: toIsoString(s.lastActivityAt, s.endTime ?? s.startTime),
       duration_ms: s.durationMs,
       input_tokens: s.inputTokens,
       output_tokens: s.outputTokens,
@@ -143,7 +160,7 @@ export function buildSummaryObject(summary: DailySummary): DailySummaryWirePaylo
       cost_usd: s.costUsd,
       tasks: s.tasksCompleted,
     })),
-    generated_at: summary.generatedAt.toISOString(),
+    generated_at: toIsoString(summary.generatedAt),
   };
 }
 

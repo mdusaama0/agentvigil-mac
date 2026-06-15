@@ -1,4 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../stats/daily-tracker.js', () => ({
+  dailyTracker: { trackSessionStart: vi.fn() },
+  isTrackableClaudeSession: (sessionId: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId),
+}));
 import {
   cleanup,
   clearSessions,

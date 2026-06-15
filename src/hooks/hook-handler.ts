@@ -73,7 +73,7 @@ export async function handleHook(eventType: string): Promise<void> {
       await dailyTracker.trackPermission(payload.session_id);
     } else if (eventType === 'stop') {
       const usage = await calculateTokenUsage(payload.transcript_path);
-      await dailyTracker.trackSessionEnd(payload.session_id, usage);
+      await dailyTracker.trackSessionEnd(payload.session_id, usage, payload.transcript_path);
     }
 
     logger.info(`[${event.project_name}] ${event.type}: ${event.message}`);

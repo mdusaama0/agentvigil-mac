@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { dailyTracker } from '../stats/daily-tracker.js';
+import { dailyTracker, isTrackableClaudeSession } from '../stats/daily-tracker.js';
 
 export type SessionState = 'working' | 'blocked' | 'done' | 'error' | 'idle';
 export type AgentKind = 'claude-code' | 'codex' | 'amp';
@@ -43,6 +43,15 @@ export function projectNameFromCwd(cwd: string): string {
   return path.basename(cwd);
 }
 
+function coerceLastActivity(value: unknown): Date | undefined {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (value != null && value !== '') {
+    const parsed = new Date(value as string | number);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return undefined;
+}
+
 const sessionStore = new Map<string, Session>();
 
 export function updateSession(sessionId: string, changes: Partial<Omit<Session, 'session_id'>>): Session {
@@ -56,7 +65,10 @@ export function updateSession(sessionId: string, changes: Partial<Omit<Session, 
     project_name: changes.project_name ?? existing?.project_name ?? projectNameFromCwd(cwd),
     agent: changes.agent ?? existing?.agent ?? 'claude-code',
     state,
-    last_activity: changes.last_activity ?? new Date(),
+    last_activity:
+      coerceLastActivity(changes.last_activity)
+      ?? coerceLastActivity(existing?.last_activity)
+      ?? new Date(),
     last_message: changes.last_message ?? existing?.last_message,
     tmux_pane_id: changes.tmux_pane_id ?? existing?.tmux_pane_id,
     pid: changes.pid ?? existing?.pid,
@@ -70,7 +82,7 @@ export function updateSession(sessionId: string, changes: Partial<Omit<Session, 
       : undefined,
   };
 
-  if (!existing) {
+  if (!existing && isTrackableClaudeSession(sessionId, cwd)) {
     void dailyTracker.trackSessionStart(sessionId, session.project_name, session.agent);
   }
 

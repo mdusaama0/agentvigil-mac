@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { isBlocklisted } from './session-watcher.js';
+import { isBlocklisted, extractCwdFromPath } from './session-watcher.js';
 import { logger } from '../utils/logger.js';
 
 const exec = promisify(execCb);
@@ -181,6 +181,67 @@ export async function findSessionFileForCwd(cwd: string): Promise<SessionFile | 
   }
 
   return null;
+}
+
+/**
+ * Locates a session's JSONL transcript by its Claude Code session id
+ * (the `{uuid}.jsonl` filename), searching all project directories.
+ */
+export async function findSessionFileBySessionId(sessionId: string): Promise<SessionFile | null> {
+  const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+  const fileName = `${sessionId}.jsonl`;
+
+  try {
+    const entries = await fs.readdir(projectsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const filePath = path.join(projectsDir, entry.name, fileName);
+      try {
+        await fs.access(filePath);
+        const lastMessage = await extractLastMessage(filePath);
+        return { sessionId, filePath, lastMessage };
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // projectsDir missing or unreadable
+  }
+
+  return null;
+}
+
+/** Reads `cwd` from transcript lines, falling back to the encoded project directory name. */
+export async function readCwdFromTranscript(filePath: string): Promise<string | undefined> {
+  try {
+    const content = await fs.readFile(filePath, 'utf-8');
+    const lines = content.trim().split('\n').filter((l) => l.trim());
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+        if (typeof entry.cwd === 'string' && entry.cwd.length > 1) return entry.cwd;
+      } catch {
+        continue;
+      }
+    }
+    return extractCwdFromPath(filePath);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Derives a display name for the stats screen from a transcript file path. */
+export async function resolveProjectNameFromTranscript(filePath: string): Promise<string | undefined> {
+  const cwd = await readCwdFromTranscript(filePath);
+  if (cwd) {
+    const name = path.basename(cwd);
+    if (name && name !== '.' && name !== '/') return name;
+  }
+
+  // Encoded dir fallback: "-Users-Usama-MeetingJets" → "MeetingJets"
+  const projectDir = path.basename(path.dirname(filePath));
+  const segment = projectDir.split('-').filter(Boolean).at(-1);
+  return segment || undefined;
 }
 
 async function extractLastMessage(filePath: string): Promise<string> {
