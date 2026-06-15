@@ -372,8 +372,8 @@ class DailyTracker {
 
   private async scheduleEndOfDaySummary(): Promise<void> {
     const config = await getConfig();
-    const summaryHour = config.dailySummaryHour ?? 21;
-    const summaryMinute = config.dailySummaryMinute ?? 0;
+    const summaryHour = config.dailySummaryHour ?? 23;
+    const summaryMinute = config.dailySummaryMinute ?? 59;
 
     const now = new Date();
     const target = new Date();

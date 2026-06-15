@@ -11,7 +11,6 @@ import { TunnelManager } from '../tunnel/tunnel-manager.js';
 import { RelayHandler } from '../relay/relay-handler.js';
 import { getAllSessions } from '../sessions/session-manager.js';
 import { SERVICE_ACCOUNT_PATH, printFcmSetupInstructions } from '../notifications/fcm-client.js';
-import { promptUser } from '../utils/prompt.js';
 import fs from 'node:fs';
 import {
   getLocalIPv4,
@@ -160,24 +159,7 @@ export async function runSetup(options: SetupOptions = {}): Promise<void> {
     printFcmSetupInstructions();
   }
 
-  // ── Daily summary time ───────────────────────────────────────────────────
-  logger.info('');
-  const summaryTimeInput = await promptUser(
-    'What time should the daily summary be sent? (HH:MM, 24h, default 21:00): '
-  );
-  if (summaryTimeInput) {
-    const match = summaryTimeInput.match(/^(\d{1,2}):(\d{2})$/);
-    const hour = match ? Number(match[1]) : NaN;
-    const minute = match ? Number(match[2]) : NaN;
-    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-      config.dailySummaryHour = hour;
-      config.dailySummaryMinute = minute;
-      await saveConfig(config);
-      logger.success(`Daily summary scheduled for ${summaryTimeInput}`);
-    } else {
-      logger.warn('Invalid time format — using default 21:00');
-    }
-  }
+  logger.info('Daily summary scheduled for 23:59 (local time).');
 
   logger.info('');
   logger.success('Setup complete!');
